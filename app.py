@@ -137,6 +137,7 @@ def fig_to_pil(fig) -> Image.Image:
                 facecolor="#0E1A20", edgecolor="none")
     buf.seek(0)
     return Image.open(buf)
+    #hi
 
 
 def make_trajectory_plotly(deltas: dict, dates: list) -> go.Figure:
