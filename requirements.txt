@@ -1,0 +1,21 @@
+# OcuTrace — Requirements
+# Install with: pip install -r requirements.txt
+
+SimpleITK>=2.3.0
+torch>=2.1.0
+torchvision>=0.16.0
+numpy>=1.24.0
+scipy>=1.11.0
+matplotlib>=3.7.0
+Pillow>=10.0.0
+tqdm>=4.66.0
+
+# Streamlit UI
+streamlit>=1.32.0
+plotly>=5.17.0
+
+# LLM narrator
+anthropic>=0.28.0
+
+# Optional — DICOM support
+pydicom>=2.4.0
