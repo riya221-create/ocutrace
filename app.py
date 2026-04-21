@@ -110,6 +110,13 @@ def load_engine(weights_path=None):
     return OcuTraceDiffEngine(weights_path=weights_path)
 
 
+def get_secret(name: str, default: str = "") -> str:
+    """Read a setting from Streamlit secrets first, then environment variables."""
+    if name in st.secrets:
+        return str(st.secrets[name])
+    return os.environ.get(name, default)
+
+
 def delta_html(value: float, pct: float, higher_is_bad: bool = True) -> str:
     """Return coloured delta HTML string."""
     sign  = "↓" if value < 0 else "↑" if value > 0 else "="
@@ -211,7 +218,8 @@ with st.sidebar:
     api_key_input = st.text_input("Anthropic API key (optional)",
                                    type="password",
                                    placeholder="sk-ant-...",
-                                   value=os.environ.get("ANTHROPIC_API_KEY", ""))
+                                   value=get_secret("ANTHROPIC_API_KEY", ""))
+    st.caption("For Streamlit Cloud, add `ANTHROPIC_API_KEY` in app secrets.")
 
     st.markdown('<hr class="oc-rule">', unsafe_allow_html=True)
     st.markdown("#### Demo mode")
@@ -289,7 +297,7 @@ if run_clicked and scans_ready:
     # Generate clinical report
     with st.spinner("Generating clinical report..."):
         try:
-            key = api_key_input or os.environ.get("ANTHROPIC_API_KEY", "")
+            key = api_key_input or get_secret("ANTHROPIC_API_KEY", "")
             if key:
                 narrator = OcuTraceNarrator(api_key=key)
                 report   = narrator.generate_from_diff_result(
