@@ -18,6 +18,7 @@ Requirements:
 """
 
 import json
+import sys
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,6 +37,26 @@ from PIL import Image
 from scipy import ndimage
 
 warnings.filterwarnings("ignore", category=UserWarning)
+
+
+def _safe_print(*args, **kwargs):
+    """
+    Print without crashing when stdout uses a legacy Windows encoding.
+    """
+    sep = kwargs.get("sep", " ")
+    end = kwargs.get("end", "\n")
+    file = kwargs.get("file", sys.stdout)
+    flush = kwargs.get("flush", False)
+    message = sep.join(str(arg) for arg in args) + end
+
+    try:
+        file.write(message)
+    except UnicodeEncodeError:
+        encoding = getattr(file, "encoding", None) or "utf-8"
+        file.write(message.encode(encoding, errors="replace").decode(encoding, errors="replace"))
+
+    if flush:
+        file.flush()
 
 # ── Device ────────────────────────────────────────────────────────────────────
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -120,7 +141,7 @@ class UNet(nn.Module):
         elif "state_dict" in state:
             state = state["state_dict"]
         self.load_state_dict(state, strict=False)
-        print(f"[OcuTrace] Loaded weights from {path}")
+        _safe_print(f"[OcuTrace] Loaded weights from {path}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -383,7 +404,7 @@ class DiffResult:
         fig.savefig(path, dpi=dpi, bbox_inches="tight",
                     facecolor="#0E1A20", edgecolor="none")
         plt.close(fig)
-        print(f"[OcuTrace] Overlay saved → {path}")
+        _safe_print(f"[OcuTrace] Overlay saved -> {path}")
 
     def save_trajectory(self, path: str | Path, history: Optional[list] = None, dpi: int = 150):
         """Save biomarker trajectory plot. Pass history list for >2 timepoints."""
@@ -393,7 +414,7 @@ class DiffResult:
         fig.savefig(path, dpi=dpi, bbox_inches="tight",
                     facecolor="#0E1A20", edgecolor="none")
         plt.close(fig)
-        print(f"[OcuTrace] Trajectory saved → {path}")
+        _safe_print(f"[OcuTrace] Trajectory saved -> {path}")
 
     def to_json(self) -> str:
         """Return structured JSON ready to pass to the LLM narrator."""
@@ -641,8 +662,8 @@ class OcuTraceDiffEngine:
         if weights_path and Path(weights_path).exists():
             self.model.load_retouch_weights(weights_path)
         else:
-            print("[OcuTrace] No pretrained weights — using random init.")
-            print("           Download RETOUCH weights and pass weights_path= for real segmentation.")
+            _safe_print("[OcuTrace] No pretrained weights - using random init.")
+            _safe_print("           Download RETOUCH weights and pass weights_path= for real segmentation.")
         self.model.eval()
 
     def run(
@@ -666,7 +687,7 @@ class OcuTraceDiffEngine:
         Returns:
             DiffResult with all outputs populated.
         """
-        print(f"[OcuTrace] Loading scans...")
+        _safe_print("[OcuTrace] Loading scans...")
         t1 = load_oct_scan(scan_t1_path)
         t2 = load_oct_scan(scan_t2_path)
 
@@ -677,26 +698,26 @@ class OcuTraceDiffEngine:
             t2 = np.array(t2_img, dtype=np.float32) / 255.0
 
         if not skip_registration:
-            print("[OcuTrace] Registering T2 → T1 (affine, mutual information)...")
+            _safe_print("[OcuTrace] Registering T2 -> T1 (affine, mutual information)...")
             t2_reg = register_scans(t1, t2)
         else:
             t2_reg = t2
 
-        print("[OcuTrace] Segmenting fluid (T1)...")
+        _safe_print("[OcuTrace] Segmenting fluid (T1)...")
         label_t1 = segment_fluid(self.model, t1, original_shape=t1.shape)
 
-        print("[OcuTrace] Segmenting fluid (T2)...")
+        _safe_print("[OcuTrace] Segmenting fluid (T2)...")
         label_t2 = segment_fluid(self.model, t2_reg, original_shape=t1.shape)
 
-        print("[OcuTrace] Computing diff map...")
+        _safe_print("[OcuTrace] Computing diff map...")
         diff_map = compute_diff(label_t1, label_t2)
 
-        print("[OcuTrace] Extracting biomarkers...")
+        _safe_print("[OcuTrace] Extracting biomarkers...")
         bio_t1 = extract_biomarkers(label_t1, px_area_mm2)
         bio_t2 = extract_biomarkers(label_t2, px_area_mm2)
         deltas  = compute_biomarker_deltas(bio_t1, bio_t2)
 
-        print("[OcuTrace] Generating overlays...")
+        _safe_print("[OcuTrace] Generating overlays...")
         ov_t1   = _seg_to_rgb(t1,     label_t1)
         ov_t2   = _seg_to_rgb(t2_reg, label_t2)
         ov_diff = _diff_to_rgb(t2_reg, diff_map)

@@ -238,11 +238,11 @@ st.markdown('<hr class="oc-rule">', unsafe_allow_html=True)
 if not use_synthetic:
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("**Visit 1 — baseline scan**")
+        st.markdown("**Visit 1 - baseline scan**")
         upload_t1 = st.file_uploader("Upload OCT scan (PNG / JPG / DICOM)",
                                       key="t1", type=["png","jpg","jpeg","dcm","mhd"])
     with col2:
-        st.markdown("**Visit 2 — follow-up scan**")
+        st.markdown("**Visit 2 - follow-up scan**")
         upload_t2 = st.file_uploader("Upload OCT scan (PNG / JPG / DICOM)",
                                       key="t2", type=["png","jpg","jpeg","dcm","mhd"])
     scans_ready = upload_t1 is not None and upload_t2 is not None
@@ -254,7 +254,7 @@ else:
 # ── Run button ────────────────────────────────────────────────────────────────
 run_col, _ = st.columns([2, 6])
 with run_col:
-    run_clicked = st.button("▶  Run analysis", type="primary",
+    run_clicked = st.button("Run analysis", type="primary",
                              disabled=not scans_ready, use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -265,7 +265,7 @@ if run_clicked and scans_ready:
     engine = load_engine(weights_path or None)
     dates  = [str(visit_date_1), str(visit_date_2)]
 
-    with st.spinner("Running pipeline — registration → segmentation → diff…"):
+    with st.spinner("Running pipeline - registration -> segmentation -> diff..."):
         try:
             if use_synthetic:
                 t1_arr, t2_arr = generate_synthetic_pair(512, 512, seed=42)
@@ -287,7 +287,7 @@ if run_clicked and scans_ready:
             st.stop()
 
     # Generate clinical report
-    with st.spinner("Generating clinical report…"):
+    with st.spinner("Generating clinical report..."):
         try:
             key = api_key_input or os.environ.get("ANTHROPIC_API_KEY", "")
             if key:
@@ -301,7 +301,7 @@ if run_clicked and scans_ready:
                 data = json.loads(result.to_json())
                 data["rvo_type"] = rvo_type
                 report = rule_based_report(data)
-                st.caption("ℹ️ No API key — using rule-based report. Add key in sidebar for AI narration.")
+                st.caption("No API key - using rule-based report. Add a key in the sidebar for AI narration.")
             st.session_state.report = report
         except Exception as e:
             st.warning(f"Report generation failed: {e}")
