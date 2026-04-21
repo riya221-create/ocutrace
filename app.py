@@ -24,7 +24,7 @@ import streamlit as st
 from PIL import Image
 
 # Local modules
-from diff_engine import OcuTraceDiffEngine, generate_synthetic_pair
+from diff_engine import OcuTraceDiffEngine, generate_synthetic_result
 from narrator import OcuTraceNarrator, rule_based_report
 
 
@@ -34,7 +34,7 @@ from narrator import OcuTraceNarrator, rule_based_report
 
 st.set_page_config(
     page_title="OcuTrace",
-    page_icon="🔬",
+    page_icon="🩺",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -45,46 +45,229 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* Background */
-.stApp { background-color: #0E1A20; color: #F2F4F3; }
+:root {
+    --oc-bg: #f3f6fb;
+    --oc-panel: #ffffff;
+    --oc-panel-soft: #eef3f9;
+    --oc-sidebar-top: #143a5c;
+    --oc-sidebar-bottom: #204f79;
+    --oc-ink: #162033;
+    --oc-muted: #5f6f86;
+    --oc-border: #d6dfeb;
+    --oc-navy: #1f4e79;
+    --oc-blue: #2f6ea7;
+    --oc-teal: #1c8b84;
+    --oc-gold: #a7742b;
+    --oc-red: #b84d57;
+    --oc-shadow: 0 14px 36px rgba(25, 50, 80, 0.08);
+}
 
-/* Sidebar */
+.stApp {
+    background:
+        radial-gradient(circle at top left, rgba(47, 110, 167, 0.12), transparent 28%),
+        linear-gradient(180deg, #f7f9fc 0%, var(--oc-bg) 56%, #edf2f8 100%);
+    color: var(--oc-ink);
+    font-family: "Aptos", "Segoe UI", sans-serif;
+}
+
+[data-testid="stAppViewContainer"] > .main {
+    padding-top: 1.25rem;
+}
+
 [data-testid="stSidebar"] {
-    background-color: #111C24;
-    border-right: 1px solid #1C3040;
+    background: linear-gradient(180deg, var(--oc-sidebar-top) 0%, var(--oc-sidebar-bottom) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Cards */
+[data-testid="stSidebar"] * {
+    color: #f4f7fb !important;
+}
+
+[data-testid="stSidebar"] .stCaption,
+[data-testid="stSidebar"] .stMarkdown p {
+    color: rgba(244, 247, 251, 0.78) !important;
+}
+
+[data-testid="stFileUploaderDropzone"],
+[data-testid="stNumberInputContainer"],
+[data-testid="stDateInputField"],
+[data-baseweb="select"] > div,
+[data-baseweb="input"] > div {
+    border-radius: 16px !important;
+}
+
+.stButton > button,
+.stDownloadButton > button {
+    border-radius: 999px !important;
+    border: 1px solid transparent !important;
+    min-height: 2.9rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em;
+    box-shadow: none !important;
+}
+
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, var(--oc-navy), var(--oc-blue)) !important;
+    color: #ffffff !important;
+}
+
+.stButton > button:hover,
+.stDownloadButton > button:hover {
+    border-color: var(--oc-blue) !important;
+}
+
+.oc-hero {
+    background:
+        linear-gradient(135deg, rgba(20, 58, 92, 0.96), rgba(35, 89, 132, 0.94)),
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.12), transparent 25%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 28px;
+    padding: 1.8rem 1.9rem;
+    margin: 0.5rem 0 1.25rem;
+    box-shadow: 0 24px 50px rgba(20, 58, 92, 0.22);
+    color: #f6f8fb;
+}
+
+.oc-hero-kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.72rem;
+    color: rgba(246, 248, 251, 0.72);
+    margin-bottom: 0.7rem;
+}
+
+.oc-hero-title {
+    font-family: "Iowan Old Style", Georgia, serif;
+    font-size: 2.35rem;
+    line-height: 1.05;
+    margin: 0;
+}
+
+.oc-hero-copy {
+    margin-top: 0.9rem;
+    max-width: 54rem;
+    color: rgba(246, 248, 251, 0.86);
+    font-size: 1rem;
+    line-height: 1.65;
+}
+
+.oc-pill-row {
+    display: flex;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+    margin-top: 1.2rem;
+}
+
+.oc-pill {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #f7f9fc;
+    border-radius: 999px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.82rem;
+}
+
 .oc-card {
-    background: #162028;
-    border: 1px solid #1C3040;
-    border-radius: 10px;
-    padding: 1.2rem 1.4rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 253, 0.96));
+    border: 1px solid var(--oc-border);
+    border-radius: 22px;
+    padding: 1.2rem 1.3rem;
     margin-bottom: 1rem;
+    box-shadow: var(--oc-shadow);
 }
-.oc-card-accent-green  { border-left: 4px solid #00C9A7; }
-.oc-card-accent-red    { border-left: 4px solid #E05C5C; }
-.oc-card-accent-amber  { border-left: 4px solid #D4954A; }
-.oc-card-accent-mint   { border-left: 4px solid #00C9A7; }
 
-/* Metric numbers */
-.oc-metric-val   { font-size: 2.2rem; font-weight: 700; font-family: 'Trebuchet MS', sans-serif; }
-.oc-metric-label { font-size: 0.78rem; color: #6B8080; margin-top: -4px; }
-.oc-delta-good   { color: #3DBD8A; font-size: 0.9rem; }
-.oc-delta-warn   { color: #E05C5C; font-size: 0.9rem; }
-.oc-delta-neu    { color: #D4954A; font-size: 0.9rem; }
+.oc-card-accent-green  { border-top: 4px solid var(--oc-teal); }
+.oc-card-accent-red    { border-top: 4px solid var(--oc-red); }
+.oc-card-accent-amber  { border-top: 4px solid var(--oc-gold); }
+.oc-card-accent-mint   { border-top: 4px solid var(--oc-blue); }
 
-/* Risk badge */
-.risk-low      { background:#1A3A2A; color:#3DBD8A; padding:4px 14px; border-radius:20px; font-weight:600; }
-.risk-moderate { background:#3A2A0A; color:#D4954A; padding:4px 14px; border-radius:20px; font-weight:600; }
-.risk-high     { background:#3A0A0A; color:#E05C5C; padding:4px 14px; border-radius:20px; font-weight:600; }
+.oc-metric-val {
+    font-size: 2.1rem;
+    font-weight: 700;
+    color: var(--oc-ink);
+    font-family: "Iowan Old Style", Georgia, serif;
+}
 
-/* Section rule */
-.oc-rule { border:none; border-top:1px solid #1C3040; margin:1.2rem 0; }
+.oc-metric-label {
+    font-size: 0.8rem;
+    color: var(--oc-muted);
+    margin-top: -0.2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
 
-/* Override Streamlit white boxes */
-[data-testid="stMetricValue"] { color: #00C9A7 !important; }
-div[data-testid="stMarkdownContainer"] p { color: #A8B5B0; }
+.oc-delta-good   { color: var(--oc-teal); font-size: 0.92rem; font-weight: 600; }
+.oc-delta-warn   { color: var(--oc-red); font-size: 0.92rem; font-weight: 600; }
+.oc-delta-neu    { color: var(--oc-gold); font-size: 0.92rem; font-weight: 600; }
+
+.risk-low,
+.risk-moderate,
+.risk-high {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem 1rem;
+    border-radius: 999px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    border: 1px solid transparent;
+}
+
+.risk-low      { background: rgba(28, 139, 132, 0.12); color: var(--oc-teal); border-color: rgba(28, 139, 132, 0.2); }
+.risk-moderate { background: rgba(167, 116, 43, 0.12); color: var(--oc-gold); border-color: rgba(167, 116, 43, 0.2); }
+.risk-high     { background: rgba(184, 77, 87, 0.12); color: var(--oc-red); border-color: rgba(184, 77, 87, 0.18); }
+
+.oc-rule {
+    border: none;
+    border-top: 1px solid var(--oc-border);
+    margin: 1.4rem 0;
+}
+
+.oc-section-label {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--oc-blue);
+    font-size: 0.72rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.oc-empty {
+    text-align: center;
+    padding: 2.8rem 2rem;
+}
+
+.oc-empty-title {
+    color: var(--oc-ink);
+    font-family: "Iowan Old Style", Georgia, serif;
+    font-size: 1.45rem;
+    margin-bottom: 0.45rem;
+}
+
+.oc-empty-copy {
+    color: var(--oc-muted);
+    font-size: 0.98rem;
+    max-width: 34rem;
+    margin: 0 auto;
+    line-height: 1.65;
+}
+
+h1, h2, h3 {
+    color: var(--oc-ink) !important;
+    font-family: "Iowan Old Style", Georgia, serif;
+    letter-spacing: -0.02em;
+}
+
+div[data-testid="stMarkdownContainer"] p {
+    color: var(--oc-muted);
+}
+
+@media (max-width: 900px) {
+    .oc-hero-title { font-size: 1.95rem; }
+    .oc-card { border-radius: 18px; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -108,6 +291,16 @@ if "engine" not in st.session_state:
 @st.cache_resource
 def load_engine(weights_path=None):
     return OcuTraceDiffEngine(weights_path=weights_path)
+
+
+def get_secret(name: str, default: str = "") -> str:
+    """Read a setting from Streamlit secrets first, then environment variables."""
+    try:
+        if name in st.secrets:
+            return str(st.secrets[name])
+    except Exception:
+        pass
+    return os.environ.get(name, default)
 
 
 def delta_html(value: float, pct: float, higher_is_bad: bool = True) -> str:
@@ -143,10 +336,10 @@ def fig_to_pil(fig) -> Image.Image:
 def make_trajectory_plotly(deltas: dict, dates: list) -> go.Figure:
     """Interactive Plotly trajectory chart (replaces matplotlib in UI)."""
     metrics = [
-        ("crt_um",       "CRT (µm)",      "#00C9A7"),
-        ("irf_mm3",      "IRF (mm³)",     "#E05C5C"),
-        ("dril_pct",     "DRIL (%)",       "#D4954A"),
-        ("ez_integrity", "EZ integrity",   "#3DBD8A"),
+        ("crt_um",       "CRT (µm)",      "#1F4E79"),
+        ("irf_mm3",      "IRF (mm³)",     "#B84D57"),
+        ("dril_pct",     "DRIL (%)",      "#A7742B"),
+        ("ez_integrity", "EZ integrity",  "#1C8B84"),
     ]
 
     fig = go.Figure()
@@ -177,13 +370,13 @@ def make_trajectory_plotly(deltas: dict, dates: list) -> go.Figure:
         ))
 
     fig.update_layout(
-        paper_bgcolor="#0E1A20",
-        plot_bgcolor="#111C24",
-        font=dict(color="#A8B5B0", size=11),
-        legend=dict(bgcolor="#162028", bordercolor="#1C3040", borderwidth=1,
-                    font=dict(color="#F2F4F3")),
-        xaxis=dict(gridcolor="#1C3040", title="Visit"),
-        yaxis=dict(gridcolor="#1C3040", title="Value"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="#F8FAFD",
+        font=dict(color="#5F6F86", size=11),
+        legend=dict(bgcolor="rgba(255,255,255,0.82)", bordercolor="#D6DFEB", borderwidth=1,
+                    font=dict(color="#162033")),
+        xaxis=dict(gridcolor="#DCE5F0", title="Visit", zeroline=False),
+        yaxis=dict(gridcolor="#DCE5F0", title="Value", zeroline=False),
         margin=dict(l=40, r=20, t=20, b=40),
         height=340,
     )
@@ -211,7 +404,8 @@ with st.sidebar:
     api_key_input = st.text_input("Anthropic API key (optional)",
                                    type="password",
                                    placeholder="sk-ant-...",
-                                   value=os.environ.get("ANTHROPIC_API_KEY", ""))
+                                   value=get_secret("ANTHROPIC_API_KEY", ""))
+    st.caption("For Streamlit Cloud, add `ANTHROPIC_API_KEY` in app secrets.")
 
     st.markdown('<hr class="oc-rule">', unsafe_allow_html=True)
     st.markdown("#### Demo mode")
@@ -219,7 +413,7 @@ with st.sidebar:
                                  help="Generate a demo OCT pair without uploading scans")
 
     st.markdown('<hr class="oc-rule">', unsafe_allow_html=True)
-    st.caption("OcuTrace · Hackathon build · April 2025")
+    st.caption("OcuTrace · Longitudinal OCT review workspace")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -228,8 +422,26 @@ with st.sidebar:
 
 st.markdown("# OcuTrace")
 st.markdown(
-    '<p style="color:#00C9A7;font-size:1rem;margin-top:-8px;">'
+    '<p style="color:#2F6EA7;font-size:1rem;margin-top:-8px;font-weight:600;">'
     "Longitudinal OCT progression analysis for Retinal Vein Occlusion</p>",
+    unsafe_allow_html=True,
+)
+st.markdown(
+    """
+    <div class="oc-hero">
+        <div class="oc-hero-kicker">Clinical Imaging Review</div>
+        <h2 class="oc-hero-title">Track structural change across visits with a cleaner, clinician-friendly readout.</h2>
+        <p class="oc-hero-copy">
+            Compare baseline and follow-up OCT scans, inspect biomarker movement, and export a concise progression summary.
+            Use demo mode for a fast walkthrough or upload two scans for a real review session.
+        </p>
+        <div class="oc-pill-row">
+            <span class="oc-pill">Two-visit comparison</span>
+            <span class="oc-pill">Cloud-ready demo flow</span>
+            <span class="oc-pill">Rule-based fallback reporting</span>
+        </div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 st.markdown('<hr class="oc-rule">', unsafe_allow_html=True)
@@ -262,23 +474,17 @@ with run_col:
 # ─────────────────────────────────────────────────────────────────────────────
 
 if run_clicked and scans_ready:
-    engine = load_engine(weights_path or None)
     dates  = [str(visit_date_1), str(visit_date_2)]
 
     with st.spinner("Running pipeline - registration -> segmentation -> diff..."):
         try:
             if use_synthetic:
-                t1_arr, t2_arr = generate_synthetic_pair(512, 512, seed=42)
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as f1, \
-                     tempfile.NamedTemporaryFile(delete=False, suffix=".png") as f2:
-                    Image.fromarray((t1_arr * 255).astype(np.uint8)).save(f1.name)
-                    Image.fromarray((t2_arr * 255).astype(np.uint8)).save(f2.name)
-                    t1_path, t2_path = Path(f1.name), Path(f2.name)
+                result = generate_synthetic_result(visit_dates=dates, seed=42)
             else:
+                engine = load_engine(weights_path or None)
                 t1_path = save_temp(upload_t1)
                 t2_path = save_temp(upload_t2)
-
-            result = engine.run(t1_path, t2_path, visit_dates=dates)
+                result = engine.run(t1_path, t2_path, visit_dates=dates)
             st.session_state.diff_result = result
             st.success("Pipeline complete.")
 
@@ -289,7 +495,7 @@ if run_clicked and scans_ready:
     # Generate clinical report
     with st.spinner("Generating clinical report..."):
         try:
-            key = api_key_input or os.environ.get("ANTHROPIC_API_KEY", "")
+            key = api_key_input or get_secret("ANTHROPIC_API_KEY", "")
             if key:
                 narrator = OcuTraceNarrator(api_key=key)
                 report   = narrator.generate_from_diff_result(
@@ -317,9 +523,10 @@ report = st.session_state.report
 
 if result is None:
     st.markdown(
-        '<div class="oc-card oc-card-accent-mint" style="text-align:center;padding:2.5rem;">'
-        '<p style="color:#6B8080;font-size:1.05rem;">'
-        "Upload two OCT scans and click Run analysis to begin."
+        '<div class="oc-card oc-card-accent-mint oc-empty">'
+        '<div class="oc-empty-title">Ready for the first comparison</div>'
+        '<p class="oc-empty-copy">'
+        "Upload baseline and follow-up scans, or turn on demo mode to preview the full workflow instantly."
         "</p></div>",
         unsafe_allow_html=True,
     )
@@ -329,25 +536,27 @@ dates = result.visit_dates or ["Visit 1", "Visit 2"]
 deltas = result.biomarker_deltas
 
 # ── Scan comparison viewer ────────────────────────────────────────────────────
+st.markdown('<div class="oc-section-label">Image review</div>', unsafe_allow_html=True)
 st.markdown("### Scan comparison")
 img_col1, img_col2, img_col3 = st.columns(3)
 
 with img_col1:
     st.markdown(f"**T1 · {dates[0]}**")
     st.image(result.overlay_t1, use_container_width=True,
-             caption=f"CRT {result.biomarkers_t1['crt_um']:.0f}µm")
+             caption=f"CRT {result.biomarkers_t1['crt_um']:.0f} µm")
 with img_col2:
     st.markdown(f"**T2 · {dates[1]}**")
     st.image(result.overlay_t2, use_container_width=True,
-             caption=f"CRT {result.biomarkers_t2['crt_um']:.0f}µm")
+             caption=f"CRT {result.biomarkers_t2['crt_um']:.0f} µm")
 with img_col3:
     st.markdown("**Diff overlay**")
     st.image(result.overlay_diff, use_container_width=True,
-             caption="Green = resolved · Red = new / worsening")
+             caption="Green = resolved · Red = new or worsening")
 
 st.markdown('<hr class="oc-rule">', unsafe_allow_html=True)
 
 # ── Biomarker metrics ─────────────────────────────────────────────────────────
+st.markdown('<div class="oc-section-label">Quantitative change</div>', unsafe_allow_html=True)
 st.markdown("### Biomarker changes")
 
 metric_cols = st.columns(5)
@@ -376,6 +585,7 @@ for col, (label, key, unit, higher_bad) in zip(metric_cols, metrics_display):
         )
 
 # ── Trajectory chart ──────────────────────────────────────────────────────────
+st.markdown('<div class="oc-section-label">Trend view</div>', unsafe_allow_html=True)
 st.markdown("### Trajectory")
 traj_fig = make_trajectory_plotly(deltas, dates)
 st.plotly_chart(traj_fig, use_container_width=True)
@@ -383,11 +593,12 @@ st.plotly_chart(traj_fig, use_container_width=True)
 st.markdown('<hr class="oc-rule">', unsafe_allow_html=True)
 
 # ── Clinical report ───────────────────────────────────────────────────────────
+st.markdown('<div class="oc-section-label">Assessment</div>', unsafe_allow_html=True)
 st.markdown("### Clinical report")
 
 if report:
-    risk_icons = {"low": "🟢", "moderate": "🟡", "high": "🔴"}
-    r_icon = risk_icons.get(report.risk_level, "⚪")
+    risk_icons = {"low": "●", "moderate": "▲", "high": "■"}
+    r_icon = risk_icons.get(report.risk_level, "●")
 
     rep_col1, rep_col2 = st.columns([3, 2])
 
@@ -395,16 +606,16 @@ if report:
         accent = {"low": "green", "moderate": "amber", "high": "red"}.get(report.risk_level, "mint")
         st.markdown(
             f'<div class="oc-card oc-card-accent-{accent}">'
-            f'<p style="color:#F2F4F3;font-size:1rem;line-height:1.65;">{report.summary}</p>'
+            f'<p style="color:#162033;font-size:1rem;line-height:1.7;">{report.summary}</p>'
             f'<hr class="oc-rule">'
-            f'<p style="color:#A8B5B0;font-size:0.9rem;">{report.recommendation}</p>'
+            f'<p style="color:#5F6F86;font-size:0.92rem;line-height:1.7;">{report.recommendation}</p>'
             f'</div>',
             unsafe_allow_html=True,
         )
         st.markdown(
             f'<div class="oc-card">'
-            f'<p style="color:#6B8080;font-size:0.78rem;margin-bottom:4px;">WATCH AT NEXT VISIT</p>'
-            f'<p style="color:#F2F4F3;font-size:0.95rem;">{report.watch_next_visit}</p>'
+            f'<p style="color:#5F6F86;font-size:0.78rem;margin-bottom:4px;letter-spacing:0.08em;">WATCH AT NEXT VISIT</p>'
+            f'<p style="color:#162033;font-size:0.97rem;line-height:1.65;">{report.watch_next_visit}</p>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -412,12 +623,12 @@ if report:
     with rep_col2:
         st.markdown(
             f'<div class="oc-card" style="text-align:center;padding:2rem 1.2rem;">'
-            f'<p style="color:#6B8080;font-size:0.78rem;">RECURRENCE RISK</p>'
+            f'<p style="color:#5F6F86;font-size:0.78rem;letter-spacing:0.08em;">RECURRENCE RISK</p>'
             f'<div style="font-size:2.8rem;">{r_icon}</div>'
             f'<div style="{{}}">'
             f'{risk_badge(report.risk_level)}'
             f'</div>'
-            f'<p style="color:#A8B5B0;font-size:0.85rem;margin-top:1rem;">{report.risk_rationale}</p>'
+            f'<p style="color:#5F6F86;font-size:0.88rem;margin-top:1rem;line-height:1.65;">{report.risk_rationale}</p>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -428,6 +639,7 @@ else:
 st.markdown('<hr class="oc-rule">', unsafe_allow_html=True)
 
 # ── Downloads ─────────────────────────────────────────────────────────────────
+st.markdown('<div class="oc-section-label">Deliverables</div>', unsafe_allow_html=True)
 st.markdown("### Export")
 dl_col1, dl_col2, dl_col3 = st.columns(3)
 

@@ -483,15 +483,18 @@ PALETTE = {
 def _seg_to_rgb(scan: np.ndarray, label: np.ndarray) -> np.ndarray:
     """Overlay segmentation labels as transparent color on grayscale scan."""
     h, w = scan.shape
-    rgb = np.stack([scan, scan, scan], axis=2)  # (H, W, 3) grayscale
+    base = np.clip(scan * 0.9 + 0.08, 0, 1)
+    rgb = np.stack([base, base, base], axis=2)  # (H, W, 3) grayscale
 
-    alpha = 0.55
+    alpha = 0.42
     for lbl, color in LABEL_COLORS.items():
         if lbl == 0:
             continue
         mask = label == lbl
+        edge = ndimage.binary_dilation(mask, iterations=1) ^ ndimage.binary_erosion(mask, iterations=1)
         for c, val in enumerate(color):
             rgb[:, :, c] = np.where(mask, rgb[:, :, c] * (1 - alpha) + val * alpha, rgb[:, :, c])
+            rgb[:, :, c] = np.where(edge, val, rgb[:, :, c])
 
     return np.clip(rgb, 0, 1)
 
@@ -503,20 +506,25 @@ def _diff_to_rgb(scan: np.ndarray, diff: np.ndarray) -> np.ndarray:
       Red    = new/worsening fluid (+1)
       Gray   = unchanged (0)
     """
-    rgb = np.stack([scan, scan, scan], axis=2)
-    alpha = 0.7
+    base = np.clip(scan * 0.82 + 0.12, 0, 1)
+    rgb = np.stack([base, base, base], axis=2)
+    alpha = 0.34
 
     # Resolved (green)
     mask_res = diff == -1
+    edge_res = ndimage.binary_dilation(mask_res, iterations=2) ^ ndimage.binary_erosion(mask_res, iterations=1)
     rgb[mask_res, 0] = rgb[mask_res, 0] * (1 - alpha) + 0.24 * alpha
     rgb[mask_res, 1] = rgb[mask_res, 1] * (1 - alpha) + 0.73 * alpha
     rgb[mask_res, 2] = rgb[mask_res, 2] * (1 - alpha) + 0.55 * alpha
+    rgb[edge_res] = np.array([0.06, 0.82, 0.59], dtype=np.float32)
 
     # New fluid (red)
     mask_new = diff == 1
+    edge_new = ndimage.binary_dilation(mask_new, iterations=2) ^ ndimage.binary_erosion(mask_new, iterations=1)
     rgb[mask_new, 0] = rgb[mask_new, 0] * (1 - alpha) + 0.94 * alpha
     rgb[mask_new, 1] = rgb[mask_new, 1] * (1 - alpha) + 0.36 * alpha
     rgb[mask_new, 2] = rgb[mask_new, 2] * (1 - alpha) + 0.27 * alpha
+    rgb[edge_new] = np.array([0.95, 0.27, 0.24], dtype=np.float32)
 
     return np.clip(rgb, 0, 1)
 
@@ -835,6 +843,130 @@ def generate_synthetic_pair(
     t2 = np.roll(t2, shift_c, axis=1)
 
     return t1.astype(np.float32), t2.astype(np.float32)
+
+
+def generate_synthetic_case(
+    height: int = 512,
+    width: int = 512,
+    seed: int = 42,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Generate a deterministic OCT-like demo pair and label maps so the app can
+    show reliable overlays in demo mode even without pretrained weights.
+    """
+    rng = np.random.default_rng(seed)
+
+    def make_base_scan(h, w):
+        scan = np.zeros((h, w), dtype=np.float32)
+        vit_end = int(h * 0.15)
+        scan[:vit_end] = rng.uniform(0.0, 0.04, (vit_end, w))
+
+        inner_start, inner_end = vit_end, int(h * 0.55)
+        for row in range(inner_start, inner_end):
+            base = 0.3 + 0.2 * np.sin(np.linspace(0, np.pi, w))
+            noise = rng.normal(0, 0.04, w)
+            scan[row] = np.clip(base + noise, 0, 1)
+
+        ez_start, ez_end = int(h * 0.55), int(h * 0.65)
+        for row in range(ez_start, ez_end):
+            intensity = 0.85 - 0.03 * abs(row - (ez_start + ez_end) // 2)
+            scan[row] = np.clip(rng.normal(intensity, 0.03, w), 0, 1)
+
+        cho_start, cho_end = int(h * 0.65), int(h * 0.90)
+        for row in range(cho_start, cho_end):
+            scan[row] = np.clip(rng.uniform(0.25, 0.50, w), 0, 1)
+
+        scan[cho_end:] = rng.uniform(0.0, 0.08, (h - cho_end, w))
+        return scan
+
+    def add_fluid(scan, pockets):
+        result = scan.copy()
+        label = np.zeros((height, width), dtype=np.int32)
+        for row_c, col_c, rr, rc in pockets:
+            for r in range(max(0, row_c - rr), min(height, row_c + rr)):
+                for c in range(max(0, col_c - rc), min(width, col_c + rc)):
+                    if ((r - row_c) / rr) ** 2 + ((c - col_c) / rc) ** 2 <= 1:
+                        result[r, c] = np.clip(result[r, c] * 0.15, 0, 0.1)
+                        label[r, c] = 1
+        return result, label
+
+    def degrade_ez(scan, strength):
+        result = scan.copy()
+        ez_start, ez_end = int(height * 0.57), int(height * 0.63)
+        c0, c1 = int(width * 0.35), int(width * 0.68)
+        result[ez_start:ez_end, c0:c1] = np.clip(result[ez_start:ez_end, c0:c1] - strength, 0, 1)
+        return result
+
+    def add_dril(scan):
+        result = scan.copy()
+        dril_start, dril_end = int(height * 0.24), int(height * 0.44)
+        c0, c1 = int(width * 0.32), int(width * 0.70)
+        region = result[dril_start:dril_end, c0:c1]
+        noise = rng.normal(0, 0.06, region.shape)
+        result[dril_start:dril_end, c0:c1] = np.clip(region * 0.78 + 0.12 + noise, 0, 1)
+        return result
+
+    pockets_t1 = [
+        (int(height * 0.29), int(width * 0.44), 18, 34),
+        (int(height * 0.34), int(width * 0.57), 14, 26),
+        (int(height * 0.40), int(width * 0.50), 10, 20),
+    ]
+    pockets_t2 = [
+        (int(height * 0.29), int(width * 0.44), 12, 22),
+        (int(height * 0.34), int(width * 0.58), 8, 16),
+        (int(height * 0.37), int(width * 0.64), 10, 18),
+    ]
+
+    t1_base = make_base_scan(height, width)
+    t1, label_t1 = add_fluid(t1_base, pockets_t1)
+    t1 = degrade_ez(t1, strength=0.10)
+
+    t2_base = make_base_scan(height, width)
+    t2, label_t2 = add_fluid(t2_base, pockets_t2)
+    t2 = degrade_ez(t2, strength=0.18)
+    t2 = add_dril(t2)
+
+    shift_r = rng.integers(-8, 8)
+    shift_c = rng.integers(-5, 5)
+    t2 = np.roll(t2, shift_r, axis=0)
+    t2 = np.roll(t2, shift_c, axis=1)
+    label_t2 = np.roll(label_t2, shift_r, axis=0)
+    label_t2 = np.roll(label_t2, shift_c, axis=1)
+
+    return (
+        t1.astype(np.float32),
+        t2.astype(np.float32),
+        label_t1.astype(np.int32),
+        label_t2.astype(np.int32),
+    )
+
+
+def generate_synthetic_result(
+    visit_dates: Optional[list[str]] = None,
+    seed: int = 42,
+    px_area_mm2: float = 1e-4,
+) -> DiffResult:
+    """Return a fully populated demo result with deterministic overlays."""
+    t1, t2, label_t1, label_t2 = generate_synthetic_case(seed=seed)
+    diff_map = compute_diff(label_t1, label_t2)
+    bio_t1 = extract_biomarkers(label_t1, px_area_mm2)
+    bio_t2 = extract_biomarkers(label_t2, px_area_mm2)
+    deltas = compute_biomarker_deltas(bio_t1, bio_t2)
+
+    return DiffResult(
+        scan_t1=t1,
+        scan_t2=t2,
+        label_t1=label_t1,
+        label_t2=label_t2,
+        diff_map=diff_map,
+        overlay_t1=_seg_to_rgb(t1, label_t1),
+        overlay_t2=_seg_to_rgb(t2, label_t2),
+        overlay_diff=_diff_to_rgb(t2, diff_map),
+        biomarkers_t1=bio_t1,
+        biomarkers_t2=bio_t2,
+        biomarker_deltas=deltas,
+        visit_dates=visit_dates or [],
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
