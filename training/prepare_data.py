@@ -165,8 +165,14 @@ def convert_retouch(src_dir, out_dir):
 def convert_duke(src_dir, out_dir):
     """
     Convert Duke DME dataset (.mat files) into images/+masks/ structure.
-    Field names can vary by release -- inspect data.keys() if this reports
-    missing keys, and adjust possible_image_keys/possible_mask_keys.
+
+    IMPORTANT: each Duke volume contains far more raw B-scan slices than
+    were actually graded by the expert annotators (e.g. 61 slices per
+    volume, but only 11 were manually annotated). Ungraded slices are
+    encoded as entirely-NaN in the manualFluid arrays. These must be
+    skipped entirely rather than treated as "no fluid present" -- doing
+    otherwise silently corrupts the dataset with hundreds of fake
+    negative labels for slices nobody ever actually checked.
     """
     from scipy.io import loadmat
 
@@ -183,6 +189,8 @@ def convert_duke(src_dir, out_dir):
         return
 
     slice_count = 0
+    skipped_ungraded = 0
+
     for mat_path in mat_files:
         try:
             data = loadmat(str(mat_path))
@@ -205,21 +213,34 @@ def convert_duke(src_dir, out_dir):
         masks  = data[mask_key]
         patient_tag = mat_path.stem
         n_slices = images.shape[2] if images.ndim == 3 else 1
+        patient_graded_count = 0
 
         for z in range(n_slices):
+            mask_slice_raw = masks[:, :, z] if masks.ndim == 3 else masks
+
+            # Skip slices that were never graded by an expert (entirely NaN).
+            # Treating these as "no fluid" would corrupt the dataset.
+            if np.isnan(mask_slice_raw).all():
+                skipped_ungraded += 1
+                continue
+
             scan_slice = images[:, :, z].astype(np.float32) if images.ndim == 3 else images.astype(np.float32)
             scan_slice = (scan_slice - scan_slice.min()) / (scan_slice.max() - scan_slice.min() + 1e-8)
 
-            mask_slice = masks[:, :, z] if masks.ndim == 3 else masks
-            mask_slice = np.nan_to_num(mask_slice, nan=0).astype(np.uint8)
+            # Within a graded slice, any remaining NaN means "no fluid at this pixel"
+            mask_slice = np.nan_to_num(mask_slice_raw, nan=0).astype(np.uint8)
             mask_slice = (mask_slice > 0).astype(np.uint8)
 
             fname = f"{patient_tag}_slice{z:03d}.png"
             Image.fromarray((scan_slice * 255).astype(np.uint8)).save(img_dir / fname)
             Image.fromarray(mask_slice).save(mask_dir / fname)
             slice_count += 1
+            patient_graded_count += 1
 
-    print(f"[PrepareData] DUKE conversion complete. {slice_count} slices written -> {out_dir}")
+        print(f"  {patient_tag}: {patient_graded_count} graded slices converted")
+
+    print(f"[PrepareData] DUKE conversion complete. {slice_count} graded slices written -> {out_dir}")
+    print(f"  Skipped {skipped_ungraded} ungraded (all-NaN) slices.")
     print(f"  Note: DUKE annotates fluid as a single class -- mapped to label 1 (IRF).")
 
 
