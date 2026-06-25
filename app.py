@@ -37,6 +37,27 @@ st.markdown("""
 <style>
 .stApp { background-color: #0E1A20; color: #F2F4F3; }
 [data-testid="stSidebar"] { background-color: #111C24; border-right: 1px solid #1C3040; }
+
+/* Sidebar text fixes — markdown headers and native widget labels were
+   inheriting a dark default color, making them unreadable on the dark
+   sidebar background. Force light color explicitly. */
+[data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3, [data-testid="stSidebar"] h4,
+[data-testid="stSidebar"] h5, [data-testid="stSidebar"] h6 {
+    color: #F2F4F3 !important;
+}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+    color: #F2F4F3 !important;
+}
+[data-testid="stSidebar"] label, [data-testid="stSidebar"] label p,
+[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] label {
+    color: #C9D4D2 !important;
+}
+[data-testid="stSidebar"] .stCheckbox label p,
+[data-testid="stSidebar"] .stCheckbox span {
+    color: #C9D4D2 !important;
+}
+[data-testid="stSidebar"] hr { border-color: #1C3040 !important; }
 .oc-card { background: #162028; border: 1px solid #1C3040; border-radius: 10px; padding: 1.2rem 1.4rem; margin-bottom: 1rem; }
 .oc-card-accent-green  { border-left: 4px solid #00C9A7; }
 .oc-card-accent-red    { border-left: 4px solid #E05C5C; }
