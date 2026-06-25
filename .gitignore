@@ -1,9 +1,46 @@
-.venv/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
-streamlit.log
-streamlit.err.log
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Model weights — block training checkpoints/scratch files by default,
+# but explicitly allow the committed production weights below.
+training/checkpoints_*/
+*.ckpt
+*.safetensors
+!weights/best_model.pth
+
+# Output files (generated at runtime)
+ocutrace_output/
+outputs/
+
+# Secrets
+.env
+*.env
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
 .DS_Store
-.streamlit/secrets.toml
+Thumbs.db
+
+# Streamlit
+.streamlit/

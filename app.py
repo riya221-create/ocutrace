@@ -128,7 +128,8 @@ with st.sidebar:
     injections   = st.number_input("Injections between visits", min_value=0, max_value=10, value=2)
     st.markdown('<hr class="oc-rule">', unsafe_allow_html=True)
     st.markdown("#### Model settings")
-    weights_path  = st.text_input("RETOUCH weights path (optional)", placeholder="/path/to/retouch_unet.pth")
+    weights_path  = st.text_input("Model weights path", value="weights/best_model.pth",
+                                   help="Defaults to the trained checkpoint (Duke DME, IRF Dice 0.544 on held-out patients)")
     api_key_input = st.text_input("Anthropic API key (optional)", type="password",
                                    placeholder="sk-ant-...", value=os.environ.get("ANTHROPIC_API_KEY", ""))
     st.markdown('<hr class="oc-rule">', unsafe_allow_html=True)
