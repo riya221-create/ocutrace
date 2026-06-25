@@ -42,5 +42,7 @@ outputs/
 .DS_Store
 Thumbs.db
 
-# Streamlit
-.streamlit/
+# Streamlit — block secrets/cache, but allow the committed theme config
+.streamlit/*
+!.streamlit/config.toml
+training/data/
